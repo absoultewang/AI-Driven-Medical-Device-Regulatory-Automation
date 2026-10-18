@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+pdfplumber
+paddleocr
+pymilvus
+opensearch-py
+requests
+celery[redis]
+psycopg2-binary

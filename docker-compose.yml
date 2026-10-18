@@ -1,0 +1,103 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: poc_user
+      POSTGRES_PASSWORD: poc_pass
+      POSTGRES_DB: poc_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+
+  milvus:
+    image: milvusdb/milvus:2.2.11
+    environment:
+      - TZ=UTC
+    ports:
+      - "19530:19530"
+      - "19121:19121"
+    volumes:
+      - milvus_data:/var/lib/milvus
+
+  opensearch:
+    image: opensearchproject/opensearch:2.10.0
+    environment:
+      - discovery.type=single-node
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+
+  fastapi:
+    build: ./backend
+    command: uvicorn api:app --host 0.0.0.0 --port 8000 --reload
+    depends_on:
+      - redis
+      - postgres
+      - milvus
+      - opensearch
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://poc_user:poc_pass@postgres:5432/poc_db
+      - REDIS_URL=redis://redis:6379/0
+      - MILVUS_HOST=milvus
+      - MILVUS_PORT=19530
+      - OPENSEARCH_HOST=opensearch
+    volumes:
+      - ./backend:/app
+
+  worker:
+    build: ./backend
+    command: celery -A tasks worker --loglevel=info
+    depends_on:
+      - redis
+      - postgres
+      - milvus
+      - opensearch
+    environment:
+      - DATABASE_URL=postgresql://poc_user:poc_pass@postgres:5432/poc_db
+      - REDIS_URL=redis://redis:6379/0
+      - MILVUS_HOST=milvus
+      - OPENSEARCH_HOST=opensearch
+    volumes:
+      - ./backend:/app
+
+  crawler:
+    build: ./crawler
+    command: python run_crawler.py
+    depends_on:
+      - fastapi
+    volumes:
+      - ./crawler:/app
+
+  frontend:
+    build: ./frontend
+    command: npm run start
+    ports:
+      - "3000:3000"
+    depends_on:
+      - fastapi
+    volumes:
+      - ./frontend:/app
+
+volumes:
+  pgdata:
+  redisdata:
+  milvus_data:
+  opensearch_data:
