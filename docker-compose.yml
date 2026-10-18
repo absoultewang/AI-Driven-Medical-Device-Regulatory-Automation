@@ -43,6 +43,12 @@ services:
     volumes:
       - opensearch_data:/usr/share/opensearch/data
 
+  mockmodel:
+    build: ./mock
+    command: uvicorn app:app --host 0.0.0.0 --port 8080
+    ports:
+      - "8080:8080"
+
   fastapi:
     build: ./backend
     command: uvicorn api:app --host 0.0.0.0 --port 8000 --reload
@@ -51,6 +57,7 @@ services:
       - postgres
       - milvus
       - opensearch
+      - mockmodel
     ports:
       - "8000:8000"
     environment:
@@ -59,6 +66,8 @@ services:
       - MILVUS_HOST=milvus
       - MILVUS_PORT=19530
       - OPENSEARCH_HOST=opensearch
+      - EMBED_ENDPOINT=http://mockmodel:8080/embed
+      - LLM_ENDPOINT=http://mockmodel:8080/llm
     volumes:
       - ./backend:/app
 
@@ -70,11 +79,14 @@ services:
       - postgres
       - milvus
       - opensearch
+      - mockmodel
     environment:
       - DATABASE_URL=postgresql://poc_user:poc_pass@postgres:5432/poc_db
       - REDIS_URL=redis://redis:6379/0
       - MILVUS_HOST=milvus
       - OPENSEARCH_HOST=opensearch
+      - EMBED_ENDPOINT=http://mockmodel:8080/embed
+      - LLM_ENDPOINT=http://mockmodel:8080/llm
     volumes:
       - ./backend:/app
 
